@@ -120,13 +120,6 @@
 //	}
 //	return 0;
 //}
-//Author : Paranoid Ninja
-//Email  : paranoidninja@protonmail.com
-//Blog   : https://scriptdotsh.com/index.php/2018/09/04/malware-on-steroids-part-1-simple-cmd-reverse-shell/
-
-//Compile with g++/i686-w64-mingw32-g++ prometheus.cpp -o prometheus.exe -lws2_32 -s -ffunction-sections -fdata-sections -Wno-write-strings -fno-exceptions -fmerge-all-constants -static-libstdc++ -static-libgcc
-//The effective size with statically compiled code should be around 13 Kb
-
 
 #include <winsock2.h>
 #include <windows.h>
